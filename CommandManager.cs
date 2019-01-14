@@ -1,6 +1,12 @@
-﻿// AlwaysTooLate.Core (c) 2018-2019 Always Too Late. All rights reserved.
+﻿// AlwaysTooLate.Commands (c) 2018-2019 Always Too Late.
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using AlwaysTooLate.Core;
+using AlwaysTooLate.CVars;
+using UnityEngine;
 
 namespace AlwaysTooLate.Commands
 {
@@ -10,33 +16,308 @@ namespace AlwaysTooLate.Commands
     /// </summary>
     public class CommandManager : BehaviourSingleton<CommandManager>
     {
+        /// <summary>
+        /// Structure for command data.
+        /// </summary>
+        public class Command
+        {
+            public string Name { get; set; }
+            public string Description { get; set; }
+            public ParameterInfo[] Parameters { get; set; }
+            public object MethodTarget { get; set; }
+            public MethodInfo Method { get; set; }
+        }
+
+        private readonly List<Command> _commands = new List<Command>();
+
         protected override void OnAwake()
         {
             base.OnAwake();
 
-            // TODO: Register default commands (exec, print etc.)
+            RegisterCommand("help", "Prints all registered commands", () =>
+            {
+                foreach (var command in GetCommands())
+                {
+                    Debug.Log($"{command.Name}: {command.Description}");
+                }
+            });
+
+            RegisterCommand("find", "Looks for commands that have the given string in its name or description.", (string str) =>
+            {
+                var commands = GetCommands().Where(x => x.Name.Contains(str) || x.Description.Contains(str));
+
+                foreach (var command in commands)
+                {
+                    Debug.Log($"{command.Name}: {command.Description}");
+                }
+            });
+
+            RegisterCommand("print", "Prints given string to the log.", (string str) =>
+            {
+                Debug.Log(str);
+            });
+
+            RegisterCommand("error", "Prints given error string to the log.", (string str) =>
+            {
+                Debug.LogError(str);
+            });
         }
 
-        public static void Execute(string command)
+        internal void RegisterFunction(string functionName, string functionDescription, object instance, MethodInfo method)
         {
-            // Commands
-            // >exec somefile.txt
-            // >print "Hello, World!"
-            // >somefunction 2 2.0 "test" true false on off
+            var parameters = method.GetParameters();
 
-            // CVar integration
-            // >settings.cheats.fly true
-            // >settings.cheats.fly on
-            // >settings.cheats.fly 1
-            // >settings.cheats.fly
-            // on (default: off)
+            // check commands, do not allow duplicates!
+            var commands = _commands.Where(x => x.Name == functionName && x.Parameters.Length == parameters.Length).ToArray();
+            if (commands.Length != 0)
+            {
+                Debug.LogWarning("Command with this name(" + functionName + ") and the same parameters count already exists.");
+                return;
+            }
 
-            // TODO: Execute command
+            // register command
+            _commands.Add(new Command
+            {
+                Name = functionName,
+                Description = functionDescription,
+                Parameters = parameters,
+                MethodTarget = instance,
+                Method = method
+            });
         }
 
-        /*public static void Register(string name)
+        /// <summary>
+        /// Gets all commands.
+        /// </summary>
+        /// <returns>The command list.</returns>
+        public static IReadOnlyList<Command> GetCommands()
         {
-        
-        }*/
+            return Instance._commands;
+        }
+
+        /// <summary>
+        /// Executes given command string.
+        /// </summary>
+        /// <param name="commandString">The command string.</param>
+        /// <example>
+        /// print "Hello, World!"
+        /// somefunction 2 2.0 'test' true on off
+        /// </example>
+        /// <example>
+        /// cheats.fly true
+        /// cheats.fly on
+        /// cheats.fly 1
+        /// cheats.fly
+        /// </example>
+        public static void Execute(string commandString)
+        {
+            var error = CommandParser.ValidateCommand(commandString);
+
+            if (error.Length > 0)
+            {
+                Debug.Log($"Invalid command syntax. {error}");
+                return;
+            }
+            
+            var arguments = CommandParser.ParseCommand(commandString, out var commandName);
+
+            // Find proper command
+            var commands = Instance._commands.Where(x => x.Name == commandName).ToArray();
+
+            // CVar integration (read value)
+            if (commands.Length == 0 && arguments.Count == 0)
+            {
+                var variable = CVarManager.GetVariable(commandName);
+                if (variable != null)
+                {
+                    Debug.Log($"{commandName} {variable.GetValue().ToString().ToLower()} (default: {variable.Attribute.DefaultValue.ToString().ToLower()})");
+                }
+
+                return;
+            }
+
+            // CVar integration (write value)
+            if (commands.Length == 0 && arguments.Count == 1)
+            {
+                var variable = CVarManager.GetVariable(commandName);
+                if (variable != null)
+                {
+                    var value = ParseObject(arguments.First(), variable.Field.FieldType.Name.ToLower());
+
+                    if (value != null)
+                    {
+                        // Set variable data
+                        variable.SetValue(value);
+                    }
+                }
+                return;
+            }
+
+            var found = false;
+            Command command = null;
+            foreach (var cmd in commands)
+            {
+                if (cmd.Parameters.Length != arguments.Count)
+                    continue;
+
+                found = true;
+                command = cmd;
+                break;
+            }
+
+            if (!found)
+            {
+                Debug.LogError("'" + commandName + "' command exists, but invalid arguments were given." + arguments.Count);
+                return;
+            }
+
+
+            // parse
+            var cmdParams = command.Parameters;
+            var paramIndex = 0;
+            var parseParams = new object[arguments.Count];
+
+            foreach (var parameter in arguments)
+            {
+                var cmdParameter = cmdParams[paramIndex];
+
+                parseParams[paramIndex] = ParseObject(parameter, cmdParameter.ParameterType.Name.ToLower());
+
+                paramIndex++;
+            }
+
+            // execute!
+            command.Method.Invoke(command.MethodTarget, parseParams);
+        }
+
+        private static object ParseObject(string value, string type)
+        {
+            switch (type)
+            {
+                case "string":
+                    // string does not need any type check
+                    return value;
+                case "int32":
+                    if (int.TryParse(value, out var resultInt))
+                    {
+                        return resultInt;
+                    }
+                    else
+                    {
+                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
+                        return null;
+                    }
+                case "single":
+                    if (float.TryParse(value, out var resultSingle))
+                    {
+                        return resultSingle;
+                    }
+                    else
+                    {
+                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
+                        return null;
+                    }
+                case "double":
+                    if (double.TryParse(value, out var resultDouble))
+                    {
+                        return resultDouble;
+                    }
+                    else
+                    {
+                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
+                        return null;
+                    }
+                case "boolean":
+                    if (bool.TryParse(value, out var resultBoolean))
+                    {
+                        return resultBoolean;
+                    }
+                    else
+                    {
+                        // Additional boolean thingies
+                        switch (value)
+                        {
+                            case "1":
+                            case "yes":
+                            case "on":
+                                return true;
+                            case "0":
+                            case "no":
+                            case "off":
+                                return false;
+                            default:
+                                Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
+                                return null;
+                        }
+                    }
+                default:
+                    Debug.LogError($"Command target method has invalid type ({type} with value of {value}) in parameters!");
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Unregisters all commands that have the given name.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        public static void UnregisterCommand(string name)
+        {
+            Instance._commands.RemoveAll(x => x.Name == name);
+        }
+
+        /// <summary>
+        /// Registers command with specified name and execution method in given command group.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="description">(optional)The command description.</param>
+        /// <param name="action">Called when command is being executed.</param>
+        public static void RegisterCommand(string name, string description, Action action)
+        {
+            Instance.RegisterFunction(name, description, action.Target, action.Method);
+        }
+
+        /// <summary>
+        /// Registers command with specified name and execution method in given command group.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="description">(optional)The command description.</param>
+        /// <param name="action">Called when command is being executed.</param>
+        public static void RegisterCommand<T1>(string name, string description, Action<T1> action)
+        {
+            Instance.RegisterFunction(name, description, action.Target, action.Method);
+        }
+
+        /// <summary>
+        /// Registers command with specified name and execution method in given command group.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="description">(optional)The command description.</param>
+        /// <param name="action">Called when command is being executed.</param>
+        public static void RegisterCommand<T1, T2>(string name, string description, Action<T1, T2> action)
+        {
+            Instance.RegisterFunction(name, description, action.Target, action.Method);
+        }
+
+        /// <summary>
+        /// Registers command with specified name and execution method in given command group.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="description">(optional)The command description.</param>
+        /// <param name="action">Called when command is being executed.</param>
+        public static void RegisterCommand<T1, T2, T3>(string name, string description, Action<T1, T2, T3> action)
+        {
+            Instance.RegisterFunction(name, description, action.Target, action.Method);
+        }
+
+        /// <summary>
+        /// Registers command with specified name and execution method in given command group.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="description">(optional)The command description.</param>
+        /// <param name="action">Called when command is being executed.</param>
+        public static void RegisterCommand<T1, T2, T3, T4>(string name, string description, Action<T1, T2, T3, T4> action)
+        {
+            Instance.RegisterFunction(name, description, action.Target, action.Method);
+        }
     }
 }
