@@ -1,4 +1,4 @@
-# AlwaysTooLate.Core
+# AlwaysTooLate.Commands
 AlwaysTooLate Commands module.
 
 TODO: Examples
