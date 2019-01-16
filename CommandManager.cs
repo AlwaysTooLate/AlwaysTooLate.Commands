@@ -51,11 +51,13 @@ namespace AlwaysTooLate.Commands
 
             RegisterCommand("find", "Looks for commands that have the given string in its name or description.", (string str) =>
             {
+                var sb = new StringBuilder();
+                var list = new List<string>();
+
+                // Find commands
                 var commands = GetCommands().Where(x => x.Name.Contains(str) || x.Description.Contains(str));
 
-                var sb = new StringBuilder();
-
-                // Find commands and config variables
+                // Build list
                 foreach (var command in commands)
                 {
                     if (ColoredFindOutput)
@@ -65,13 +67,44 @@ namespace AlwaysTooLate.Commands
                         sb.Append(": ");
                         sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
 
-                        Debug.Log(sb.ToString());
+                        list.Add(sb.ToString());
                         sb.Clear();
                     }
                     else
                     {
-                        Debug.Log($"{command.Name}: {command.Description}");
+                        list.Add($"{command.Name}: {command.Description}");
                     }
+                }
+
+                // Find config variables
+                var variables = CVarManager.Instance.AllVariables.Where(x => x.Key.Contains(str) || x.Value.Attribute.Description.Contains(str));
+
+                // Build list
+                foreach (var variable in variables)
+                {
+                    if (ColoredFindOutput)
+                    {
+                        // Insert background color
+                        sb.Append(RichTextExtensions.ColorInnerString(variable.Key, str, "green"));
+                        sb.Append(": ");
+                        sb.Append(RichTextExtensions.ColorInnerString(variable.Value.Attribute.Description, str, "green"));
+
+                        list.Add(sb.ToString());
+                        sb.Clear();
+                    }
+                    else
+                    {
+                        list.Add($"{variable.Key}: {variable.Value.Attribute.Description}");
+                    }
+                }
+
+                // Sort list
+                list.Sort();
+
+                // Draw all matching commands/cvars
+                foreach (var item in list)
+                {
+                    Debug.Log(item);
                 }
             });
 
