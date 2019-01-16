@@ -1,0 +1,13 @@
+{
+    "name": "AlwaysTooLate.Commands", 
+    "unity": "2018.3", 
+    "version": "1.0.0-preview", 
+    "dependencies": {
+        "AlwaysTooLate.Core": "1.0",
+        "AlwaysTooLate.CVars": "1.0"
+    }, 
+    "keywords": [
+        "AlwaysTooLate"
+    ], 
+    "description": "AlwaysTooLate Commands module"
+}

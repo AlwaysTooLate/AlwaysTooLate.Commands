@@ -4,9 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using AlwaysTooLate.Core;
 using AlwaysTooLate.CVars;
 using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace AlwaysTooLate.Commands
 {
@@ -30,6 +35,8 @@ namespace AlwaysTooLate.Commands
 
         private readonly List<Command> _commands = new List<Command>();
 
+        public bool ColoredFindOutput = true;
+
         protected override void OnAwake()
         {
             base.OnAwake();
@@ -46,9 +53,25 @@ namespace AlwaysTooLate.Commands
             {
                 var commands = GetCommands().Where(x => x.Name.Contains(str) || x.Description.Contains(str));
 
+                var sb = new StringBuilder();
+
+                // Find commands and config variables
                 foreach (var command in commands)
                 {
-                    Debug.Log($"{command.Name}: {command.Description}");
+                    if (ColoredFindOutput)
+                    {
+                        // Insert background color
+                        sb.Append(RichTextExtensions.ColorInnerString(command.Name, str, "green"));
+                        sb.Append(": ");
+                        sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
+
+                        Debug.Log(sb.ToString());
+                        sb.Clear();
+                    }
+                    else
+                    {
+                        Debug.Log($"{command.Name}: {command.Description}");
+                    }
                 }
             });
 
@@ -57,9 +80,23 @@ namespace AlwaysTooLate.Commands
                 Debug.Log(str);
             });
 
+            RegisterCommand("warning", "Prints given warning string to the log.", (string str) =>
+            {
+                Debug.LogWarning(str);
+            });
+
             RegisterCommand("error", "Prints given error string to the log.", (string str) =>
             {
                 Debug.LogError(str);
+            });
+
+            RegisterCommand("quit", "Exits the game.", () =>
+            {
+#if UNITY_EDITOR
+                EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
             });
         }
 
@@ -131,9 +168,12 @@ namespace AlwaysTooLate.Commands
                 if (variable != null)
                 {
                     Debug.Log($"{commandName} {variable.GetValue().ToString().ToLower()} (default: {variable.Attribute.DefaultValue.ToString().ToLower()})");
+                    return;
                 }
 
+                Debug.LogError($"Unknown command '{commandName}'");
                 return;
+
             }
 
             // CVar integration (write value)
@@ -149,7 +189,10 @@ namespace AlwaysTooLate.Commands
                         // Set variable data
                         variable.SetValue(value);
                     }
+                    return;
                 }
+
+                Debug.LogError($"Unknown command '{commandName}'");
                 return;
             }
 
