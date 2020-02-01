@@ -13,8 +13,8 @@ namespace AlwaysTooLate.Commands
         }
 
         /// <summary>
-        /// Parse command to get name and arguments.
-        /// Strings are supported! eg.: 'print "Hello, World!"'
+        ///     Parse command to get name and arguments.
+        ///     Strings are supported! eg.: 'print "Hello, World!"'
         /// </summary>
         /// <param name="command">The command string.</param>
         /// <param name="name">The resulting command name.</param>
@@ -31,7 +31,6 @@ namespace AlwaysTooLate.Commands
             var stringRead = false;
 
             foreach (var ch in command)
-            {
                 if (ch == ' ' && !stringRead)
                 {
                     // Next param
@@ -57,13 +56,9 @@ namespace AlwaysTooLate.Commands
                     // Add to current.
                     parameter += ch;
                 }
-            }
 
             // Add last parameter
-            if (!string.IsNullOrEmpty(parameter))
-            {
-                parameters.Add(parameter);
-            }
+            if (!string.IsNullOrEmpty(parameter)) parameters.Add(parameter);
 
             // Set name
             if (string.IsNullOrEmpty(name) && parameters.Count > 0)
