@@ -17,7 +17,21 @@ After succesfull installation, open a scene that is loaded first when starting y
 
 # Basic Usage
 
-To register your own command, use the `CommandManager.Instance.RegisterCommand` method (it is recommended to register all commands in the Main scene, by using the `Awake` method on some component in that scene).
+To register your own command, use the `CommandManager.Instance.RegisterCommand` method (it is recommended to register all commands in the Main scene, by using the `Awake` method on some component in that scene). Example:
+
+```CSharp
+using UnityEngine;
+using AlwaysTooLate.Commands;
+
+public class TestCommand : MonoBehavior
+{
+    private void Start()
+    {
+        CommandManager.Instance.RegisterCommand("hello", "Makes a hello-world-like log", 
+         (string name) => Debug.Log($"Hello {name}!"));
+    }
+}
+```
 
 # Contribution
 
