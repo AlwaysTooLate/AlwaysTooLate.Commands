@@ -26,77 +26,20 @@ namespace AlwaysTooLate.Commands
 
         public bool ColoredFindOutput = true;
 
+        /// <summary>
+        ///     Gets all commands.
+        /// </summary>
+        /// <returns>The command list.</returns>
+        public static IReadOnlyList<Command> Commands => Instance._commands;
+
         protected override void OnAwake()
         {
             base.OnAwake();
-
-            RegisterCommand("help", "Prints all registered commands", () =>
-            {
-                foreach (var command in GetCommands()) Debug.Log($"{command.Name}: {command.Description}");
-            });
-
-            RegisterCommand("find", "Looks for commands that have the given string in its name or description.",
-                (string str) =>
-                {
-                    var sb = new StringBuilder();
-                    var list = new List<string>();
-
-                    // Find commands
-                    var commands = GetCommands().Where(x => x.Name.Contains(str) || x.Description.Contains(str));
-
-                    // Build list
-                    foreach (var command in commands)
-                        if (ColoredFindOutput)
-                        {
-                            // Insert background color
-                            sb.Append(RichTextExtensions.ColorInnerString(command.Name, str, "green"));
-                            sb.Append(": ");
-                            sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
-
-                            list.Add(sb.ToString());
-                            sb.Clear();
-                        }
-                        else
-                        {
-                            list.Add($"{command.Name}: {command.Description}");
-                        }
-
-                    // Find config variables
-                    var variables = CVarManager.Instance.AllVariables.Where(x =>
-                        x.Key.Contains(str) || x.Value.Attribute.Description.Contains(str));
-
-                    // Build list
-                    foreach (var variable in variables)
-                        if (ColoredFindOutput)
-                        {
-                            // Insert background color
-                            sb.Append(RichTextExtensions.ColorInnerString(variable.Key, str, "green"));
-                            sb.Append(": ");
-                            sb.Append(RichTextExtensions.ColorInnerString(variable.Value.Attribute.Description, str,
-                                "green"));
-
-                            list.Add(sb.ToString());
-                            sb.Clear();
-                        }
-                        else
-                        {
-                            list.Add($"{variable.Key}: {variable.Value.Attribute.Description}");
-                        }
-
-                    // Sort list
-                    list.Sort();
-
-                    // Draw all matching commands/cvars
-                    foreach (var item in list) Debug.Log(item);
-                });
-
-            RegisterCommand("print", "Prints given string to the log.", (string str) => { Debug.Log(str); });
-
-            RegisterCommand("warning", "Prints given warning string to the log.",
-                (string str) => { Debug.LogWarning(str); });
-
-            RegisterCommand("error", "Prints given error string to the log.", (string str) => { Debug.LogError(str); });
-
+            RegisterCommand("help", "Prints all registered commands", Commands.ForEach(command => Debug.Log($"{command.Name}: {command.Description}")));
+            RegisterCommand("find", "Looks for commands that have the given string in its name or description.", HelpCommand);
+            RegisterCommand("print", "Prints given string to the log.", Debug.Log);
+            RegisterCommand("warning", "Prints given warning string to the log.", Debug.LogWarning);
+            RegisterCommand("error", "Prints given error string to the log.", Debug.LogError);
             RegisterCommand("quit", "Exits the game.", () =>
             {
 #if UNITY_EDITOR
@@ -107,15 +50,10 @@ namespace AlwaysTooLate.Commands
             });
         }
 
-        internal void RegisterFunction(string functionName, string functionDescription, object instance,
-            MethodInfo method)
+        internal void RegisterFunction(string functionName, string functionDescription, object instance, MethodInfo method)
         {
             var parameters = method.GetParameters();
-
-            // check commands, do not allow duplicates!
-            var commands = _commands.Where(x => x.Name == functionName && x.Parameters.Length == parameters.Length)
-                .ToArray();
-            if (commands.Length != 0)
+            if (_commands.Any(x => x.Name == functionName && x.Parameters.Length == parameters.Length))
             {
                 Debug.LogWarning("Command with this name(" + functionName +
                                  ") and the same parameters count already exists.");
@@ -133,13 +71,81 @@ namespace AlwaysTooLate.Commands
             });
         }
 
-        /// <summary>
-        ///     Gets all commands.
-        /// </summary>
-        /// <returns>The command list.</returns>
-        public static IReadOnlyList<Command> GetCommands()
+        private void HelpCommand(string str)
         {
-            return Instance._commands;
+            var sb = new StringBuilder();
+            var list = new List<string>();
+
+            // Find commands
+            var commands = Commands.Where(x => x.Name.Contains(str) || x.Description.Contains(str));
+
+            // Build list
+            foreach (var command in commands)
+                if (ColoredFindOutput)
+                {
+                    // Insert background color
+                    sb.Append(RichTextExtensions.ColorInnerString(command.Name, str, "green"));
+                    sb.Append(": ");
+                    sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
+
+                    list.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    list.Add($"{command.Name}: {command.Description}");
+                }
+
+            // Find config variables
+            var variables = CVarManager.Instance.AllVariables.Where(x =>
+                x.Key.Contains(str) || x.Value.Attribute.Description.Contains(str));
+
+            // Build list
+            foreach (var variable in variables)
+                if (ColoredFindOutput)
+                {
+                    // Insert background color
+                    sb.Append(RichTextExtensions.ColorInnerString(variable.Key, str, "green"));
+                    sb.Append(": ");
+                    sb.Append(RichTextExtensions.ColorInnerString(variable.Value.Attribute.Description, str,
+                        "green"));
+
+                    list.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    list.Add($"{variable.Key}: {variable.Value.Attribute.Description}");
+                }
+
+            // Sort list
+            list.Sort();
+            list.ForEach(Debug.Log);
+        }
+
+        private static object ParseObject(string value, TypeCode type)
+        {
+            value.ToLower();
+            if (type == TypeCode.DBNull || type == TypeCode.Empty)
+                return null;
+            if (type == TypeCode.String || type == TypeCode.Object)
+                return value;
+            try
+            {
+                if (type == TypeCode.Boolean)
+                {
+                    if (value == "yes" || value == "1" || value == "on")
+                        return true;
+                    if (value == "no" || value == "0" || value == "off")
+                        return false;
+                }
+                return Convert.ChangeType(value, type);
+            }
+            catch (Exception)
+            {
+                Debug.LogError($"Invalid parameter type were given for '{value}' expected type of '{type}'.");
+            }
+            return null;
         }
 
         /// <summary>
@@ -192,7 +198,7 @@ namespace AlwaysTooLate.Commands
                 var variable = CVarManager.GetVariable(commandName);
                 if (variable != null)
                 {
-                    var value = ParseObject(arguments.First(), variable.Field.FieldType.Name.ToLower());
+                    var value = ParseObject(arguments.First(), variable.Field.FieldType.GetTypeCode());
 
                     if (value != null)
                         // Set variable data
@@ -218,95 +224,17 @@ namespace AlwaysTooLate.Commands
 
             if (!found)
             {
-                Debug.LogError("'" + commandName + "' command exists, but invalid arguments were given." +
-                               arguments.Count);
+                Debug.LogError("'" + commandName + "' command exists, but invalid arguments were given." + arguments.Count);
                 return;
             }
 
             // parse
             var cmdParams = command.Parameters;
-            var paramIndex = 0;
-            var parseParams = new object[arguments.Count];
-
-            foreach (var parameter in arguments)
-            {
-                var cmdParameter = cmdParams[paramIndex];
-
-                parseParams[paramIndex] = ParseObject(parameter, cmdParameter.ParameterType.Name.ToLower());
-
-                paramIndex++;
-            }
+            var paramIndex = -1;
+            var parseParams = cmdParams.Select(parameter => ParseObject(parameter, cmdParams[paramIndex++].ParameterType.Name.GetTypeCode()));
 
             // execute!
-            command.Method.Invoke(command.MethodTarget, parseParams);
-        }
-
-        private static object ParseObject(string value, string type)
-        {
-            switch (type)
-            {
-                case "string":
-                    // string does not need any type check
-                    return value;
-                case "int32":
-                    if (int.TryParse(value, out var resultInt))
-                    {
-                        return resultInt;
-                    }
-                    else
-                    {
-                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
-                        return null;
-                    }
-
-                case "single":
-                    if (float.TryParse(value, out var resultSingle))
-                    {
-                        return resultSingle;
-                    }
-                    else
-                    {
-                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
-                        return null;
-                    }
-
-                case "double":
-                    if (double.TryParse(value, out var resultDouble))
-                    {
-                        return resultDouble;
-                    }
-                    else
-                    {
-                        Debug.LogError($"invalid parameter type were given for '{value}' expected type of '{type}'.");
-                        return null;
-                    }
-
-                case "boolean":
-                    if (bool.TryParse(value, out var resultBoolean))
-                        return resultBoolean;
-                    else
-                        // Additional boolean thingies
-                        switch (value)
-                        {
-                            case "1":
-                            case "yes":
-                            case "on":
-                                return true;
-                            case "0":
-                            case "no":
-                            case "off":
-                                return false;
-                            default:
-                                Debug.LogError(
-                                    $"invalid parameter type were given for '{value}' expected type of '{type}'.");
-                                return null;
-                        }
-
-                default:
-                    Debug.LogError(
-                        $"Command target method has invalid type ({type} with value of {value}) in parameters!");
-                    return null;
-            }
+            command.Method.Invoke(command.MethodTarget, parseParams.ToArray());
         }
 
         /// <summary>
@@ -368,15 +296,11 @@ namespace AlwaysTooLate.Commands
         /// <param name="name">The command name.</param>
         /// <param name="description">(optional)The command description.</param>
         /// <param name="action">Called when command is being executed.</param>
-        public static void RegisterCommand<T1, T2, T3, T4>(string name, string description,
-            Action<T1, T2, T3, T4> action)
+        public static void RegisterCommand<T1, T2, T3, T4>(string name, string description, Action<T1, T2, T3, T4> action)
         {
             Instance.RegisterFunction(name, description, action.Target, action.Method);
         }
 
-        /// <summary>
-        ///     Structure for command data.
-        /// </summary>
         public class Command
         {
             public string Name { get; set; }
