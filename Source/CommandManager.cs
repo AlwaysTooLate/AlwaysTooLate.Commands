@@ -23,6 +23,7 @@ namespace AlwaysTooLate.Commands
     public class CommandManager : BehaviourSingleton<CommandManager>
     {
         public bool ColoredFindOutput = true;
+        public bool AutoCorrection = true;
         private readonly List<Command> _commands = new List<Command>();
 
         /// <summary>
@@ -154,29 +155,11 @@ namespace AlwaysTooLate.Commands
 
             var arguments = CommandParser.ParseCommand(commandString, out var commandName);
 
-            var error = CommandParser.ValidateCommand(commandName);
-
-            if (error.Length > 0)
-            {
-                Debug.Log($"Invalid command syntax. {error}");
-                return false;
-            }
-
-            
-
             // Find proper command
             var commands = Instance._commands.Where(x => x.Name == commandName).ToArray();
 
-            if(command.Length == 0)
+            if(commands.Length == 0)
             {
-                //Syntax check
-                var error = CommandParser.ValidateCommand(commandName);
-
-                if (error.Length > 0)
-                {
-                    Debug.Log($"Invalid command syntax. {error}");
-                    return false;
-                }
                 // CVar integration (read value)
                 if (arguments.Count == 0)
                 {
@@ -207,7 +190,17 @@ namespace AlwaysTooLate.Commands
                     }
 
                     Debug.LogError($"Unknown command '{commandName}'");
-                    return;
+                    return false;
+                }
+
+                //Syntax check
+                if(AutoCorrection)
+                {
+                    if (CommandParser.ValidateCommand(commandName, out string commandName))
+                    {
+                        Debug.Log($"Invalid command syntax. You probably wanted use " + commandName);
+                        return false;
+                    }
                 }
             }
 
@@ -227,7 +220,7 @@ namespace AlwaysTooLate.Commands
             if (!found)
             {
                 Debug.LogError("'" + commandName + "' command exists, but invalid arguments were given." + arguments.Count);
-                return;
+                return false;
             }
 
             // parse
@@ -237,6 +230,7 @@ namespace AlwaysTooLate.Commands
 
             // execute!
             command.Method.Invoke(command.MethodTarget, parseParams.ToArray());
+            return true;
         }
 
         /// <summary>
@@ -251,7 +245,7 @@ namespace AlwaysTooLate.Commands
         /// <summary>
         ///     Unregisters command.
         /// </summary>
-        /// <param command="command">Command instance</param>
+        /// <param name="command">Command instance</param>
         public static void UnregisterCommand(Command command)
         {
             Instance._commands.Remove(command);
