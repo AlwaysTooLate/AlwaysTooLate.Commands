@@ -22,9 +22,8 @@ namespace AlwaysTooLate.Commands
     [DefaultExecutionOrder(-900)]
     public class CommandManager : BehaviourSingleton<CommandManager>
     {
-        private readonly List<Command> _commands = new List<Command>();
-
         public bool ColoredFindOutput = true;
+        private readonly List<Command> _commands = new List<Command>();
 
         /// <summary>
         ///     Gets all commands.
@@ -52,23 +51,11 @@ namespace AlwaysTooLate.Commands
 
         internal void RegisterFunction(string functionName, string functionDescription, object instance, MethodInfo method)
         {
-            var parameters = method.GetParameters();
+            functionName.Replace(" ", "_");
             if (_commands.Any(x => x.Name == functionName && x.Parameters.Length == parameters.Length))
-            {
-                Debug.LogWarning("Command with this name(" + functionName +
-                                 ") and the same parameters count already exists.");
-                return;
-            }
-
-            // register command
-            _commands.Add(new Command
-            {
-                Name = functionName,
-                Description = functionDescription,
-                Parameters = parameters,
-                MethodTarget = instance,
-                Method = method
-            });
+                Debug.LogWarning($"Command with this name({functionName}) and the same parameters count already exists.");
+            else
+                _commands.Add(new Command(functionName, functionDescription, instance, method));
         }
 
         private void HelpCommand(string str)
@@ -162,53 +149,68 @@ namespace AlwaysTooLate.Commands
         ///     cheats.fly 1
         ///     cheats.fly
         /// </example>
-        public static void Execute(string commandString)
+        public static bool Execute(string commandString)
         {
-            var error = CommandParser.ValidateCommand(commandString);
+
+            var arguments = CommandParser.ParseCommand(commandString, out var commandName);
+
+            var error = CommandParser.ValidateCommand(commandName);
 
             if (error.Length > 0)
             {
                 Debug.Log($"Invalid command syntax. {error}");
-                return;
+                return false;
             }
 
-            var arguments = CommandParser.ParseCommand(commandString, out var commandName);
+            
 
             // Find proper command
             var commands = Instance._commands.Where(x => x.Name == commandName).ToArray();
 
-            // CVar integration (read value)
-            if (commands.Length == 0 && arguments.Count == 0)
+            if(command.Length == 0)
             {
-                var variable = CVarManager.GetVariable(commandName);
-                if (variable != null)
+                //Syntax check
+                var error = CommandParser.ValidateCommand(commandName);
+
+                if (error.Length > 0)
                 {
-                    Debug.Log(
-                        $"{commandName} {variable.GetValue().ToString().ToLower()} (default: {variable.Attribute.DefaultValue.ToString().ToLower()})");
-                    return;
+                    Debug.Log($"Invalid command syntax. {error}");
+                    return false;
+                }
+                // CVar integration (read value)
+                if (arguments.Count == 0)
+                {
+                    var variable = CVarManager.GetVariable(commandName);
+                    if (variable != null)
+                    {
+                        Debug.Log(
+                            $"{commandName} {variable.GetValue().ToString().ToLower()} (default: {variable.Attribute.DefaultValue.ToString().ToLower()})");
+                        return false;
+                    }
+
+                    Debug.LogError($"Unknown command '{commandName}'");
+                    return false;
                 }
 
-                Debug.LogError($"Unknown command '{commandName}'");
-                return;
-            }
-
-            // CVar integration (write value)
-            if (commands.Length == 0 && arguments.Count == 1)
-            {
-                var variable = CVarManager.GetVariable(commandName);
-                if (variable != null)
+                // CVar integration (write value)
+                if (arguments.Count == 1)
                 {
-                    var value = ParseObject(arguments.First(), variable.Field.FieldType.GetTypeCode());
+                    var variable = CVarManager.GetVariable(commandName);
+                    if (variable != null)
+                    {
+                        var value = ParseObject(arguments.First(), variable.Field.FieldType.GetTypeCode());
 
-                    if (value != null)
-                        // Set variable data
-                        variable.SetValue(value);
+                        if (value != null)
+                            // Set variable data
+                            variable.SetValue(value);
+                        return;
+                    }
+
+                    Debug.LogError($"Unknown command '{commandName}'");
                     return;
                 }
-
-                Debug.LogError($"Unknown command '{commandName}'");
-                return;
             }
+
 
             var found = false;
             Command command = null;
@@ -244,6 +246,15 @@ namespace AlwaysTooLate.Commands
         public static void UnregisterCommand(string name)
         {
             Instance._commands.RemoveAll(x => x.Name == name);
+        }
+
+        /// <summary>
+        ///     Unregisters command.
+        /// </summary>
+        /// <param command="command">Command instance</param>
+        public static void UnregisterCommand(Command command)
+        {
+            Instance._commands.Remove(command);
         }
 
         /// <summary>
@@ -301,13 +312,11 @@ namespace AlwaysTooLate.Commands
             Instance.RegisterFunction(name, description, action.Target, action.Method);
         }
 
-        public class Command
-        {
-            public string Name { get; set; }
-            public string Description { get; set; }
-            public ParameterInfo[] Parameters { get; set; }
-            public object MethodTarget { get; set; }
-            public MethodInfo Method { get; set; }
-        }
+        /// <summary>
+        ///     Gets all commands.
+        /// </summary>
+        /// <returns>The command list.</returns>
+        [Obsolete("'GetCommands' method is deprecated, please use 'Command' property instead.")]
+        public static IReadOnlyList<Command> GetCommands() => Instance._commands;
     }
 }
