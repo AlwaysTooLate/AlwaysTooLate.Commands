@@ -25,30 +25,35 @@ namespace AlwaysTooLate.Commands
         /// <param name="correction">The resulting correction of command.</param>
         /// <returns>Returns true if mistake is found.</returns>
         public static bool ValidateCommand(string command, out string correction)
-        {  
+        {
             correction = string.Empty;
-            if(_validationLevel == 0f)
+            if (_validationLevel == 0f)
                 return false;
             command.Trim().ToLower();
 
             //Misspell check
             var names = CommandManager.Commands.Select(x => x.Name).ToArray();
             char[] command_chars = command.ToCharArray();
-            int bestIndex;
-            int bestPoints;
+            int bestIndex = -1;
+            int bestPoints = -1;
             for (int i = 0; i < names.Length; i++)
             {
-                int points;
+                int points = 0;
                 char[] name_chars = names[i].ToLower().ToCharArray();
-                for (int c = 0; c < command_chars.Length; c++)
-                    if(name_chars[c] == command_chars[c])
+                for (int c = 0; c < command_chars.Length && c < name_chars.Length; c++)
+                {
+                    //Checking if the letters match and adding points if they are
+                    if (name_chars[c] == command_chars[c])
                         points++;
+                }
+                //Comparing to best result
                 if(points < bestPoints)
                     continue;
                 bestPoints = points;
                 bestIndex = i;
             }
-            if((float)bestPoints / command_chars.Length  <= _validationLevel)
+            //If the similarity is high enough, it returns a correction
+            if ((float)bestPoints / command_chars.Length  >= _validationLevel)
             {
                 correction = names[bestIndex];
                 return true;

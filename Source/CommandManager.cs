@@ -35,11 +35,11 @@ namespace AlwaysTooLate.Commands
         protected override void OnAwake()
         {
             base.OnAwake();
-            RegisterCommand("help", "Prints all registered commands", Commands.ForEach(command => Debug.Log($"{command.Name}: {command.Description}")));
-            RegisterCommand("find", "Looks for commands that have the given string in its name or description.", HelpCommand);
-            RegisterCommand("print", "Prints given string to the log.", Debug.Log);
-            RegisterCommand("warning", "Prints given warning string to the log.", Debug.LogWarning);
-            RegisterCommand("error", "Prints given error string to the log.", Debug.LogError);
+            RegisterCommand("help", "Prints all registered commands", () => _commands.ForEach(command => Debug.Log($"{command.Name}: {command.Description}")));
+            RegisterCommand<string>("find", "Looks for commands that have the given string in its name or description.", HelpCommand);
+            RegisterCommand<string>("print", "Prints given string to the log.", Debug.Log);
+            RegisterCommand<string>("warning", "Prints given warning string to the log.", Debug.LogWarning);
+            RegisterCommand<string>("error", "Prints given error string to the log.", Debug.LogError);
             RegisterCommand("quit", "Exits the game.", () =>
             {
 #if UNITY_EDITOR
@@ -53,7 +53,7 @@ namespace AlwaysTooLate.Commands
         internal void RegisterFunction(string functionName, string functionDescription, object instance, MethodInfo method)
         {
             functionName.Replace(" ", "_");
-            if (_commands.Any(x => x.Name == functionName && x.Parameters.Length == parameters.Length))
+            if (_commands.Any(x => x.Name == functionName && x.Parameters.Length == method.GetParameters().Length))
                 Debug.LogWarning($"Command with this name({functionName}) and the same parameters count already exists.");
             else
                 _commands.Add(new Command(functionName, functionDescription, instance, method));
@@ -160,6 +160,16 @@ namespace AlwaysTooLate.Commands
 
             if(commands.Length == 0)
             {
+                //Syntax check
+                if (Instance.AutoCorrection)
+                {
+                    if (CommandParser.ValidateCommand(commandName, out string corrected))
+                    {
+                        Debug.LogError($"Invalid command syntax. You probably wanted to use " + corrected);
+                        return false;
+                    }
+                }
+
                 // CVar integration (read value)
                 if (arguments.Count == 0)
                 {
@@ -168,7 +178,7 @@ namespace AlwaysTooLate.Commands
                     {
                         Debug.Log(
                             $"{commandName} {variable.GetValue().ToString().ToLower()} (default: {variable.Attribute.DefaultValue.ToString().ToLower()})");
-                        return false;
+                        return true;
                     }
 
                     Debug.LogError($"Unknown command '{commandName}'");
@@ -181,26 +191,16 @@ namespace AlwaysTooLate.Commands
                     var variable = CVarManager.GetVariable(commandName);
                     if (variable != null)
                     {
-                        var value = ParseObject(arguments.First(), variable.Field.FieldType.GetTypeCode());
+                        var value = ParseObject(arguments.First(), Type.GetTypeCode(variable.Field.FieldType));
 
                         if (value != null)
                             // Set variable data
                             variable.SetValue(value);
-                        return;
+                        return true;
                     }
 
                     Debug.LogError($"Unknown command '{commandName}'");
                     return false;
-                }
-
-                //Syntax check
-                if(AutoCorrection)
-                {
-                    if (CommandParser.ValidateCommand(commandName, out string commandName))
-                    {
-                        Debug.Log($"Invalid command syntax. You probably wanted use " + commandName);
-                        return false;
-                    }
                 }
             }
 
@@ -226,7 +226,7 @@ namespace AlwaysTooLate.Commands
             // parse
             var cmdParams = command.Parameters;
             var paramIndex = -1;
-            var parseParams = cmdParams.Select(parameter => ParseObject(parameter, cmdParams[paramIndex++].ParameterType.Name.GetTypeCode()));
+            var parseParams = arguments.Select(arg => ParseObject(arg, Type.GetTypeCode(cmdParams[paramIndex++].ParameterType)));
 
             // execute!
             command.Method.Invoke(command.MethodTarget, parseParams.ToArray());
