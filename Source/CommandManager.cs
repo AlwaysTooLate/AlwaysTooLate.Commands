@@ -233,7 +233,7 @@ namespace AlwaysTooLate.Commands
 
             // parse
             var cmdParams = command.Parameters;
-            var paramIndex = -1;
+            var paramIndex = 0;
             var parseParams = arguments.Select(arg => ParseObject(arg, Type.GetTypeCode(cmdParams[paramIndex++].ParameterType)));
 
             // execute!
