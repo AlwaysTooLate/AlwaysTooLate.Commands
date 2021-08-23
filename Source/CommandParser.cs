@@ -15,7 +15,7 @@ namespace AlwaysTooLate.Commands
         public static float ValidationLevel 
         {
             get => _validationLevel;
-            set => _validationLevel = value > 1f ? 1f : value < 0f ? 0f : value;
+            set => _validationLevel = value > 1.0f ? 1.0f : value < 0.0f ? 0.0f : value;
         }
 
         /// <summary>
@@ -31,29 +31,29 @@ namespace AlwaysTooLate.Commands
                 return false;
             command.Trim().ToLower();
 
-            //Misspell check
+            // Misspell check
             var names = CommandManager.Commands.Select(x => x.Name).ToArray();
-            char[] command_chars = command.ToCharArray();
+            char[] commandChars = command.ToCharArray();
             int bestIndex = -1;
             int bestPoints = -1;
             for (int i = 0; i < names.Length; i++)
             {
                 int points = 0;
-                char[] name_chars = names[i].ToLower().ToCharArray();
-                for (int c = 0; c < command_chars.Length && c < name_chars.Length; c++)
+                char[] nameChars = names[i].ToLower().ToCharArray();
+                for (int c = 0; c < commandChars.Length && c < nameChars.Length; c++)
                 {
-                    //Checking if the letters match and adding points if they are
-                    if (name_chars[c] == command_chars[c])
+                    // Checking if the letters match and adding points if they are
+                    if (nameChars[c] == commandChars[c])
                         points++;
                 }
-                //Comparing to best result
+                // Comparing to best result
                 if(points < bestPoints)
                     continue;
                 bestPoints = points;
                 bestIndex = i;
             }
-            //If the similarity is high enough, it returns a correction
-            if ((float)bestPoints / command_chars.Length  >= _validationLevel)
+            // If the similarity is high enough, it returns a correction
+            if ((float)bestPoints / commandChars.Length  >= _validationLevel)
             {
                 correction = names[bestIndex];
                 return true;
@@ -79,7 +79,7 @@ namespace AlwaysTooLate.Commands
             var parameter = "";
             var stringRead = false;
  
-            //NOTE: Regex can be used to short this, but its slower ofc.
+            // NOTE: Regex can be used to short this, but its slower ofc.
             foreach (var ch in command)
                 if (ch == ' ' && !stringRead)
                 {

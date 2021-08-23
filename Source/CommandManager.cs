@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -31,6 +32,14 @@ namespace AlwaysTooLate.Commands
         /// </summary>
         /// <returns>The command list.</returns>
         public static IReadOnlyList<Command> Commands => Instance._commands;
+
+        /// <summary>
+        ///     Gets all commands.
+        /// </summary>
+        /// <returns>The command list.</returns>
+        [Obsolete("'GetCommands' method is deprecated, please use 'Command' property instead.")]
+        public static IReadOnlyList<Command> GetCommands() => Instance._commands;
+
 
         protected override void OnAwake()
         {
@@ -69,20 +78,20 @@ namespace AlwaysTooLate.Commands
 
             // Build list
             foreach (var command in commands)
-                if (ColoredFindOutput)
-                {
-                    // Insert background color
-                    sb.Append(RichTextExtensions.ColorInnerString(command.Name, str, "green"));
-                    sb.Append(": ");
-                    sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
-
-                    list.Add(sb.ToString());
-                    sb.Clear();
-                }
-                else
+            {
+                if (!ColoredFindOutput)
                 {
                     list.Add($"{command.Name}: {command.Description}");
+                    continue;
                 }
+                // Insert background color
+                sb.Append(RichTextExtensions.ColorInnerString(command.Name, str, "green"));
+                sb.Append(": ");
+                sb.Append(RichTextExtensions.ColorInnerString(command.Description, str, "green"));
+
+                list.Add(sb.ToString());
+                sb.Clear();
+            }
 
             // Find config variables
             var variables = CVarManager.Instance.AllVariables.Where(x =>
@@ -90,21 +99,20 @@ namespace AlwaysTooLate.Commands
 
             // Build list
             foreach (var variable in variables)
-                if (ColoredFindOutput)
-                {
-                    // Insert background color
-                    sb.Append(RichTextExtensions.ColorInnerString(variable.Key, str, "green"));
-                    sb.Append(": ");
-                    sb.Append(RichTextExtensions.ColorInnerString(variable.Value.Attribute.Description, str,
-                        "green"));
-
-                    list.Add(sb.ToString());
-                    sb.Clear();
-                }
-                else
+            {
+                if (!ColoredFindOutput)
                 {
                     list.Add($"{variable.Key}: {variable.Value.Attribute.Description}");
+                    continue;
                 }
+                // Insert background color
+                sb.Append(RichTextExtensions.ColorInnerString(variable.Key, str, "green"));
+                sb.Append(": ");
+                sb.Append(RichTextExtensions.ColorInnerString(variable.Value.Attribute.Description, str, "green"));
+
+                list.Add(sb.ToString());
+                sb.Clear();
+            }
 
             // Sort list
             list.Sort();
@@ -118,15 +126,15 @@ namespace AlwaysTooLate.Commands
                 return null;
             if (type == TypeCode.String || type == TypeCode.Object)
                 return value;
+            if (type == TypeCode.Boolean)
+            {
+                if (value == "yes" || value == "1" || value == "on")
+                    return true;
+                if (value == "no" || value == "0" || value == "off")
+                    return false;
+            }
             try
             {
-                if (type == TypeCode.Boolean)
-                {
-                    if (value == "yes" || value == "1" || value == "on")
-                        return true;
-                    if (value == "no" || value == "0" || value == "off")
-                        return false;
-                }
                 return Convert.ChangeType(value, type);
             }
             catch (Exception)
@@ -160,7 +168,7 @@ namespace AlwaysTooLate.Commands
 
             if(commands.Length == 0)
             {
-                //Syntax check
+                // Syntax check
                 if (Instance.AutoCorrection)
                 {
                     if (CommandParser.ValidateCommand(commandName, out string corrected))
@@ -219,7 +227,7 @@ namespace AlwaysTooLate.Commands
 
             if (!found)
             {
-                Debug.LogError("'" + commandName + "' command exists, but invalid arguments were given." + arguments.Count);
+                Debug.LogError($"'{commandName}' command exists, but invalid arguments ({arguments.Count}) were given.");
                 return false;
             }
 
@@ -305,12 +313,5 @@ namespace AlwaysTooLate.Commands
         {
             Instance.RegisterFunction(name, description, action.Target, action.Method);
         }
-
-        /// <summary>
-        ///     Gets all commands.
-        /// </summary>
-        /// <returns>The command list.</returns>
-        [Obsolete("'GetCommands' method is deprecated, please use 'Command' property instead.")]
-        public static IReadOnlyList<Command> GetCommands() => Instance._commands;
     }
 }

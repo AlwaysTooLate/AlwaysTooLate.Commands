@@ -15,11 +15,11 @@ namespace AlwaysTooLate.Commands
 
         internal Command(string name, string description, object methodTarget, MethodInfo method)
         {
-            this.Name = name;
-            this.Description = description;
-            this.Parameters = method.GetParameters();
-            this.MethodTarget = method; 
-            this.Method = method;
+            Name = name;
+            Description = description;
+            Parameters = method.GetParameters();
+            MethodTarget = methodTarget; 
+            Method = method;
         }
     }
 }
