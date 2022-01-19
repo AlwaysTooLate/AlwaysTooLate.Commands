@@ -1,4 +1,5 @@
-﻿// AlwaysTooLate.Commands (c) 2018-2019 Always Too Late.
+﻿// AlwaysTooLate.Commands (c) 2018-2022 Always Too Late.
+
 using System.Linq;
 using System.Collections.Generic;
 

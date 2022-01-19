@@ -1,3 +1,5 @@
+// AlwaysTooLate.Commands (c) 2018-2022 Always Too Late.
+
 using System.Reflection;
 
 namespace AlwaysTooLate.Commands

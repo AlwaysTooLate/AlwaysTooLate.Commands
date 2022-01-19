@@ -37,4 +37,4 @@ public class TestCommand : MonoBehavior
 
 We do accept PR. Feel free to contribute. If you want to find us, look for the ATL staff on the official [AlwaysTooLate Discord Server](https://discord.alwaystoolate.com/)
 
-*AlwaysTooLate.Commands (c) 2018-2020 Always Too Late.*
+*AlwaysTooLate.Commands (c) 2018-2022 Always Too Late.*
